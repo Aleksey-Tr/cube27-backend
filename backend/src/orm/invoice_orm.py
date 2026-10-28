@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import Date, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Date, ForeignKey, Integer, Numeric
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from orm.base import Base
@@ -15,7 +16,17 @@ class InvoiceORM(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     status: Mapped[str] = mapped_column(
-        String(50), default="Unpaid", server_default="Unpaid", nullable=False
+        ENUM(
+            "Unpaid",
+            "Paid",
+            "Overdue",
+            "Cancelled",
+            name="invoice_status",
+            create_type=False,
+        ),
+        default="Unpaid",
+        server_default="Unpaid",
+        nullable=False,
     )
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     issued_date: Mapped[date] = mapped_column(Date, nullable=False)

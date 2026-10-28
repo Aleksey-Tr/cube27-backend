@@ -2,37 +2,61 @@ from enum import Enum
 
 
 class UserRole(str, Enum):
-    """4 основных уровня ролей пользователей системы Cube27."""
+    """Роли пользователей системы Cube27 по ТЗ."""
 
-    OWNER = "owner"                                     # Владелец системы (может управлять всем)
-    ADMIN = "admin"                                     # Администратор (управляет company-owner и ниже)
-    COMPANY_OWNER = "company-owner"                     # Владелец компании/арендатор (управляет работниками своей компании)
-    COMPANY_ELECTRICIAN = "company-electrician"         # Электрик компании
-    COMPANY_PLUMBER = "company-plumber"                 # Сантехник компании
+    OWNER = "owner"                                     # Владелец системы (самый главный)
+    ADMIN = "admin"                                     # Администратор (подчинённый после owner)
+    LEASE_MANAGER = "lease_manager"                     # Менеджер по аренде
+    CHIEF_POWER_ENGINEER = "chief_power_engineer"       # Главный энергетик
+    CHIEF_EMO = "chief_emo"                             # Начальник службы ЭМО
+    CHIEF_ENGINEER = "chief_engineer"                   # Главный инженер
+    CHIEF_ACCOUNTANT = "chief_accountant"               # Главный бухгалтер
+    COMPANY = "company"                                 # Компания-арендатор (единая роль арендатора)
 
 
-# Единый список разрешений: роль инициатора -> роли, которыми он может управлять (создавать / удалять)
+# Группы ролей
+LANDLORD_ROLES: set[str] = {
+    UserRole.OWNER.value,
+    UserRole.ADMIN.value,
+}
+
+STAFF_ROLES: set[str] = {
+    UserRole.OWNER.value,
+    UserRole.ADMIN.value,
+    UserRole.LEASE_MANAGER.value,
+    UserRole.CHIEF_POWER_ENGINEER.value,
+    UserRole.CHIEF_EMO.value,
+    UserRole.CHIEF_ENGINEER.value,
+    UserRole.CHIEF_ACCOUNTANT.value,
+}
+
+# Матрица прав: роль создателя -> роли, которыми он может управлять
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     # 1. owner: управление абсолютно всеми ролями
     UserRole.OWNER.value: {
         UserRole.OWNER.value,
         UserRole.ADMIN.value,
-        UserRole.COMPANY_OWNER.value,
-        UserRole.COMPANY_ELECTRICIAN.value,
-        UserRole.COMPANY_PLUMBER.value,
+        UserRole.LEASE_MANAGER.value,
+        UserRole.CHIEF_POWER_ENGINEER.value,
+        UserRole.CHIEF_EMO.value,
+        UserRole.CHIEF_ENGINEER.value,
+        UserRole.CHIEF_ACCOUNTANT.value,
+        UserRole.COMPANY.value,
     },
-    # 2. admin: управление company-owner и линейными работниками
+    # 2. admin: управляет сотрудниками компании и арендаторами (не может управлять owner и admin)
     UserRole.ADMIN.value: {
-        UserRole.COMPANY_OWNER.value,
-        UserRole.COMPANY_ELECTRICIAN.value,
-        UserRole.COMPANY_PLUMBER.value,
+        UserRole.LEASE_MANAGER.value,
+        UserRole.CHIEF_POWER_ENGINEER.value,
+        UserRole.CHIEF_EMO.value,
+        UserRole.CHIEF_ENGINEER.value,
+        UserRole.CHIEF_ACCOUNTANT.value,
+        UserRole.COMPANY.value,
     },
-    # 3. company-owner: управление только работниками своей компании
-    UserRole.COMPANY_OWNER.value: {
-        UserRole.COMPANY_ELECTRICIAN.value,
-        UserRole.COMPANY_PLUMBER.value,
-    },
-    # 4. Линейные работники (электрик, сантехник): прав управления нет
-    UserRole.COMPANY_ELECTRICIAN.value: set(),
-    UserRole.COMPANY_PLUMBER.value: set(),
+    # 3. Сотрудники и компании-арендаторы прав на создание других пользователей не имеют
+    UserRole.LEASE_MANAGER.value: set(),
+    UserRole.CHIEF_POWER_ENGINEER.value: set(),
+    UserRole.CHIEF_EMO.value: set(),
+    UserRole.CHIEF_ENGINEER.value: set(),
+    UserRole.CHIEF_ACCOUNTANT.value: set(),
+    UserRole.COMPANY.value: set(),
 }

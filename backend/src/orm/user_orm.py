@@ -9,7 +9,7 @@ class UserORM(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[int | None] = mapped_column(
-        ForeignKey("companies.id"), nullable=True
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=True
     )
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), nullable=False)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)

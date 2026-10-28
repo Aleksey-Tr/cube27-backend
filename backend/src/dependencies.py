@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -5,6 +6,7 @@ from sqlalchemy.orm import joinedload
 from config import settings
 from database import get_session
 from orm.user_orm import UserORM
+from roles import LANDLORD_ROLES, STAFF_ROLES, UserRole
 from services.auth import decode_access_token
 
 
@@ -35,7 +37,7 @@ async def get_current_user(request: Request) -> UserORM:
     async with get_session() as session:
         stmt = (
             select(UserORM)
-            .options(joinedload(UserORM.role))
+            .options(joinedload(UserORM.role), joinedload(UserORM.company))
             .where(UserORM.id == user_id)
         )
         result = await session.execute(stmt)
@@ -47,16 +49,44 @@ async def get_current_user(request: Request) -> UserORM:
             detail="Пользователь не найден",
         )
 
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Пользователь заблокирован или деактивирован",
+        )
+
     return user
 
 
-async def require_owner(current_user: UserORM = Depends(get_current_user)) -> UserORM:
-    """Проверяет, что у пользователя роль 'owner' (хозяин)."""
-    role_name = current_user.role.name.lower() if current_user.role else ""
-    if role_name != "owner":
+def require_roles(*allowed_roles: str) -> Callable:
+    """Фабрика зависимости для проверки наличия у пользователя одной из разрешенных ролей."""
+
+    async def role_checker(
+        current_user: UserORM = Depends(get_current_user),
+    ) -> UserORM:
+        user_role = (
+            current_user.role.name.lower() if current_user.role else ""
+        )
+        normalized_allowed = {r.lower() for r in allowed_roles}
+        if user_role not in normalized_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Недостаточно прав. Требуется одна из ролей: {', '.join(allowed_roles)}",
+            )
+        return current_user
+
+    return role_checker
+
+
+async def require_owner(
+    current_user: UserORM = Depends(get_current_user),
+) -> UserORM:
+    """Проверяет, что у пользователя роль 'owner' (главный владелец)."""
+    user_role = current_user.role.name.lower() if current_user.role else ""
+    if user_role != UserRole.OWNER.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав. Действие доступно только пользователям с ролью 'owner'",
+            detail="Недостаточно прав. Действие доступно только роли 'owner'",
         )
     return current_user
 
@@ -65,8 +95,8 @@ async def require_admin_or_owner(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что у пользователя роль 'owner' или 'admin'."""
-    role_name = current_user.role.name.lower() if current_user.role else ""
-    if role_name not in ("owner", "admin"):
+    user_role = current_user.role.name.lower() if current_user.role else ""
+    if user_role not in LANDLORD_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав. Требуется роль 'admin' или 'owner'",
@@ -74,14 +104,27 @@ async def require_admin_or_owner(
     return current_user
 
 
-async def require_company_owner_or_above(
+async def require_staff(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
-    """Проверяет, что у пользователя роль 'company-owner', 'admin' или 'owner'."""
-    role_name = current_user.role.name.lower() if current_user.role else ""
-    if role_name not in ("owner", "admin", "company-owner"):
+    """Проверяет, что пользователь является сотрудником компании арендодателя."""
+    user_role = current_user.role.name.lower() if current_user.role else ""
+    if user_role not in STAFF_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав. Требуется роль 'company-owner', 'admin' или 'owner'",
+            detail="Недостаточно прав. Доступно только сотрудникам компании арендодателя",
+        )
+    return current_user
+
+
+async def require_company(
+    current_user: UserORM = Depends(get_current_user),
+) -> UserORM:
+    """Проверяет, что текущий пользователь является компанией-арендатором."""
+    user_role = current_user.role.name.lower() if current_user.role else ""
+    if user_role != UserRole.COMPANY.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав. Раздел предназначен для арендаторов (компаний)",
         )
     return current_user
