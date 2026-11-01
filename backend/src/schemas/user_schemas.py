@@ -23,21 +23,16 @@ class UserRegisterRequest(BaseModel):
     company_address: str | None = Field(default=None, description="Юридический адрес компании")
 
 
-class UserCreateRequest(BaseModel):
+class UserCreateRequest(UserRegisterRequest):
     """Схема создания пользователя арендодателем (owner или admin).
 
     Если создается компания-арендатор (role_name='company'), то создается запись компании
     по переданным company_name и company_inn (или привязывается существующая).
     """
 
-    email: EmailStr
-    password: str = Field(min_length=6, description="Пароль пользователя (минимум 6 символов)")
-    first_name: str = Field(min_length=1, max_length=100, description="Имя")
-    last_name: str = Field(min_length=1, max_length=100, description="Фамилия")
     role_name: str = Field(
         description="Роль: owner, admin, lease_manager, chief_power_engineer, chief_emo, chief_engineer, chief_accountant, company"
     )
-    phone: str | None = Field(default=None, max_length=20, description="Телефон")
     company_id: int | None = Field(
         default=None,
         description="ID существующей компании",
