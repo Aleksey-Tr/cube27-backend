@@ -37,7 +37,7 @@ async def get_current_user(request: Request) -> UserORM:
     async with get_session() as session:
         stmt = (
             select(UserORM)
-            .options(joinedload(UserORM.role), joinedload(UserORM.company))
+            .options(joinedload(UserORM.company))
             .where(UserORM.id == user_id)
         )
         result = await session.execute(stmt)
@@ -64,9 +64,7 @@ def require_roles(*allowed_roles: str) -> Callable:
     async def role_checker(
         current_user: UserORM = Depends(get_current_user),
     ) -> UserORM:
-        user_role = (
-            current_user.role.name.lower() if current_user.role else ""
-        )
+        user_role = current_user.role.lower() if current_user.role else ""
         normalized_allowed = {r.lower() for r in allowed_roles}
         if user_role not in normalized_allowed:
             raise HTTPException(
@@ -82,7 +80,7 @@ async def require_owner(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что у пользователя роль 'owner' (главный владелец)."""
-    user_role = current_user.role.name.lower() if current_user.role else ""
+    user_role = current_user.role.lower() if current_user.role else ""
     if user_role != UserRole.OWNER.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -95,7 +93,7 @@ async def require_admin_or_owner(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что у пользователя роль 'owner' или 'admin'."""
-    user_role = current_user.role.name.lower() if current_user.role else ""
+    user_role = current_user.role.lower() if current_user.role else ""
     if user_role not in LANDLORD_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -108,7 +106,7 @@ async def require_staff(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что пользователь является сотрудником компании арендодателя."""
-    user_role = current_user.role.name.lower() if current_user.role else ""
+    user_role = current_user.role.lower() if current_user.role else ""
     if user_role not in STAFF_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -121,7 +119,7 @@ async def require_company(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что текущий пользователь является компанией-арендатором."""
-    user_role = current_user.role.name.lower() if current_user.role else ""
+    user_role = current_user.role.lower() if current_user.role else ""
     if user_role != UserRole.COMPANY.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

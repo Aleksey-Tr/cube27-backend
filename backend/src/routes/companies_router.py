@@ -66,8 +66,7 @@ async def get_company_by_id(
             first_name=u.first_name,
             last_name=u.last_name,
             phone=u.phone,
-            role_id=u.role_id,
-            role_name=u.role.name if u.role else None,
+            role=u.role,
             company_id=u.company_id,
             company=CompanyBriefResponse(
                 id=company.id,

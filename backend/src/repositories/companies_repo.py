@@ -4,7 +4,6 @@ from sqlalchemy.orm import selectinload
 
 from orm.company_orm import CompanyORM
 from orm.contract_orm import ContractORM
-from orm.user_orm import UserORM
 
 
 class CompaniesRepository:
@@ -31,7 +30,7 @@ class CompaniesRepository:
         stmt = (
             select(CompanyORM)
             .options(
-                selectinload(CompanyORM.users).selectinload(UserORM.role),
+                selectinload(CompanyORM.users),
                 selectinload(CompanyORM.contracts).selectinload(ContractORM.premises),
             )
             .where(CompanyORM.id == company_id)
@@ -40,21 +39,18 @@ class CompaniesRepository:
         return result.scalars().first()
 
     async def get_by_inn(self, inn: str) -> CompanyORM | None:
-        stmt = select(CompanyORM).where(CompanyORM.inn == inn.strip())
+        stmt = select(CompanyORM).where(CompanyORM.inn == inn)
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def create(
-        self, name: str, inn: str, address: str | None = None
-    ) -> CompanyORM:
+    async def create(self, name: str, inn: str, address: str | None = None) -> CompanyORM:
         company = CompanyORM(
-            name=name.strip(),
-            inn=inn.strip(),
-            address=address.strip() if address else None,
+            name=name,
+            inn=inn,
+            address=address,
         )
         self.session.add(company)
-        await self.session.commit()
-        await self.session.refresh(company)
+        await self.session.flush()
         return company
 
     async def get_or_create(

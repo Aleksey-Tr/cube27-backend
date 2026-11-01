@@ -26,13 +26,11 @@ class UserRegisterRequest(BaseModel):
 class UserCreateRequest(UserRegisterRequest):
     """Схема создания пользователя арендодателем (owner или admin).
 
-    Если создается компания-арендатор (role_name='company'), то создается запись компании
+    Если создается компания-арендатор (role='company'), то создается запись компании
     по переданным company_name и company_inn (или привязывается существующая).
     """
 
-    role_name: str = Field(
-        description="Роль: owner, admin, lease_manager, chief_power_engineer, chief_emo, chief_engineer, chief_accountant, company"
-    )
+    role: str = Field(description="Роль: owner, admin, lease_manager, chief_power_engineer, chief_emo, chief_engineer, chief_accountant, company")
     company_id: int | None = Field(
         default=None,
         description="ID существующей компании",
@@ -78,9 +76,8 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     phone: str | None = None
-    role_id: int
-    role_name: str | None = None
-    company_id: int | None = None
+    role: str
+    company_id: int | None
     company: CompanyBriefResponse | None = None
     is_active: bool
 

@@ -28,15 +28,14 @@ router = APIRouter(prefix="/auth", tags=["Аутентификация и рег
     ),
 )
 async def register(register_data: UserRegisterRequest) -> UserRegisterResponse:
-    user = await AuthService.register_company(register_data)
+    user = await AuthService.user_register(register_data)
     user_response = UserResponse(
         id=user.id,
         email=user.email,
         first_name=user.first_name,
         last_name=user.last_name,
         phone=user.phone,
-        role_id=user.role_id,
-        role_name=user.role.name if user.role else None,
+        role=user.role,
         company_id=user.company_id,
         company=(
             CompanyBriefResponse(
@@ -74,8 +73,7 @@ async def login(
         first_name=user.first_name,
         last_name=user.last_name,
         phone=user.phone,
-        role_id=user.role_id,
-        role_name=user.role.name if user.role else None,
+        role=user.role,
         company_id=user.company_id,
         company=(
             CompanyBriefResponse(
@@ -114,8 +112,7 @@ async def get_me(current_user: UserORM = Depends(get_current_user)) -> UserMeRes
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         phone=current_user.phone,
-        role_id=current_user.role_id,
-        role_name=current_user.role.name if current_user.role else None,
+        role=current_user.role,
         company_id=current_user.company_id,
         company=(
             CompanyBriefResponse(

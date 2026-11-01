@@ -6,11 +6,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from fastapi import HTTPException, Response, status
 import jwt
-from sqlalchemy import func, select
 
 from config import settings
 from database import get_session
-from orm.role_orm import RoleORM
 from orm.user_orm import UserORM
 from repositories.companies_repo import CompaniesRepository
 from repositories.users_repo import UsersRepository
@@ -108,19 +106,22 @@ class AuthService:
     """Сервис аутентификации, регистрации и управления пользователями/компаниями."""
 
     @classmethod
-    async def register_company(
+    async def register_by_user(
         cls, register_data: UserRegisterRequest
     ) -> UserORM:
         """Самостоятельная регистрация компании-арендатора (подача заявки).
 
-        Создается компания и представитель компании с ролью 'company'.
-        Статус is_active=False (ожидает подтверждения администратором или owner).
+        1. Проверяет, нет ли уже пользователя с таким email.
+        2. Проверяет, нет ли уже компании с таким ИНН.
+        3. Если таких пользователя и компании нет — создаются компания и пользователь:
+           - роль пользователя: 'company'
+           - статус пользователя: is_active = False
         """
         async with get_session() as session:
             users_repo = UsersRepository(session)
             companies_repo = CompaniesRepository(session)
 
-            # 1. Проверяем уникальность email
+            # 1. Проверяем email пользователя
             existing_user = await users_repo.get_by_email(register_data.email)
             if existing_user:
                 raise HTTPException(
@@ -128,99 +129,38 @@ class AuthService:
                     detail="Пользователь с таким email уже зарегистрирован",
                 )
 
-            # 2. Ищем роль company в БД
-            stmt = select(RoleORM).where(
-                func.lower(RoleORM.name) == UserRole.COMPANY.value
-            )
-            role = (await session.execute(stmt)).scalars().first()
-            if not role:
+            # 2. Проверяем ИНН компании
+            existing_company = await companies_repo.get_by_inn(register_data.company_inn)
+            if existing_company:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=(
-                        f"Роль '{UserRole.COMPANY.value}' не найдена в базе данных. "
-                        "Необходимо наполнить таблицу roles через SQL-скрипт."
-                    ),
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Компания с таким ИНН уже зарегистрирована",
                 )
 
-            # 3. Создаем компанию по ИНН или находим существующую
-            company = await companies_repo.get_or_create(
-                name=register_data.company_name,
-                inn=register_data.company_inn,
-                address=register_data.company_address,
+            # 3. Создаем компанию
+            company = await companies_repo.create(
+                name=register_data.company_name.strip(),
+                inn=register_data.company_inn.strip(),
+                address=register_data.company_address.strip()
             )
 
-            # 4. Создаем пользователя-представителя компании со статусом is_active=False
+            # 4. Создаем пользователя-представителя со статусом is_active=False и ролью company
             password_hash = hash_password(register_data.password)
             user = await users_repo.create_user(
-                email=register_data.email,
+                email=register_data.email.strip(),
                 password_hash=password_hash,
-                first_name=register_data.first_name,
-                last_name=register_data.last_name,
-                role_id=role.id,
+                first_name=register_data.first_name.strip(),
+                last_name=register_data.last_name.strip(),
+                role=UserRole.COMPANY.value,
                 company_id=company.id,
-                phone=register_data.phone,
+                phone=register_data.phone.strip(),
                 is_active=False,
             )
-            return user
+            await session.commit()
+            return await users_repo.get_by_id_with_role(user.id)
 
     @classmethod
-    async def login_user(
-        cls, login_data: UserLoginRequest
-    ) -> tuple[UserORM, str]:
-        """Вход пользователя в систему. Возвращает (пользователь, jwt_token)."""
-        async with get_session() as session:
-            users_repo = UsersRepository(session)
-
-            user = await users_repo.get_by_email(login_data.email)
-            if not user or not verify_password(login_data.password, user.password_hash):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Неверный email или пароль",
-                )
-
-            if not user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Ваша учетная запись ожидает подтверждения администратором или была деактивирована",
-                )
-
-            role_name = user.role.name if user.role else ""
-            token = create_access_token(
-                data={
-                    "sub": str(user.id),
-                    "email": user.email,
-                    "role_id": user.role_id,
-                    "role_name": role_name,
-                    "company_id": user.company_id,
-                }
-            )
-            return user, token
-
-    @classmethod
-    async def get_user_by_id(
-        cls, current_user: UserORM, user_id: int
-    ) -> UserORM:
-        """Получение пользователя по его ID."""
-        creator_role = current_user.role.name.lower() if current_user.role else ""
-        # Разрешено owner, admin либо если пользователь просматривает свой профиль
-        if creator_role not in LANDLORD_ROLES and current_user.id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Недостаточно прав для просмотра профиля другого пользователя",
-            )
-
-        async with get_session() as session:
-            users_repo = UsersRepository(session)
-            user = await users_repo.get_by_id_with_role(user_id)
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Пользователь с ID {user_id} не найден",
-                )
-            return user
-
-    @classmethod
-    async def create_user_by_creator(
+    async def register_by_admin(
         cls, creator: UserORM, user_data: UserCreateRequest
     ) -> UserORM:
         """Создание пользователя арендодателем (owner или admin).
@@ -228,8 +168,8 @@ class AuthService:
         При создании пользователю сразу устанавливается is_active=True.
         Если создается роль 'company', создается соответствующая компания в БД.
         """
-        creator_role = creator.role.name.lower() if creator.role else ""
-        target_role = user_data.role_name.lower().strip()
+        creator_role = creator.role.lower() if creator.role else ""
+        target_role = user_data.role.lower().strip()
 
         allowed_targets = ROLE_PERMISSIONS.get(creator_role, set())
         if target_role not in allowed_targets:
@@ -238,18 +178,16 @@ class AuthService:
                 detail=f"Пользователь с ролью '{creator_role}' не может создавать пользователей с ролью '{target_role}'",
             )
 
+        valid_roles = {r.value for r in UserRole}
+        if target_role not in valid_roles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Роль '{target_role}' не существует",
+            )
+
         async with get_session() as session:
             users_repo = UsersRepository(session)
             companies_repo = CompaniesRepository(session)
-
-            # Проверка роли в БД
-            stmt = select(RoleORM).where(func.lower(RoleORM.name) == target_role)
-            role = (await session.execute(stmt)).scalars().first()
-            if not role:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Роль '{target_role}' не найдена в базе данных",
-                )
 
             # Проверка уникальности email
             existing_user = await users_repo.get_by_email(user_data.email)
@@ -287,18 +225,73 @@ class AuthService:
                 password_hash=password_hash,
                 first_name=user_data.first_name,
                 last_name=user_data.last_name,
-                role_id=role.id,
+                role=target_role,
                 company_id=company_id,
                 phone=user_data.phone,
                 is_active=True,
             )
 
     @classmethod
+    async def login_user(
+        cls, login_data: UserLoginRequest
+    ) -> tuple[UserORM, str]:
+        """Вход пользователя в систему. Возвращает (пользователь, jwt_token)."""
+        async with get_session() as session:
+            users_repo = UsersRepository(session)
+
+            user = await users_repo.get_by_email(login_data.email)
+            if not user or not verify_password(login_data.password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Неверный email или пароль",
+                )
+
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Ваша учетная запись ожидает подтверждения администратором или была деактивирована",
+                )
+
+            role = user.role
+            token = create_access_token(
+                data={
+                    "sub": str(user.id),
+                    "email": user.email,
+                    "role": user.role,
+                    "role": role,
+                    "company_id": user.company_id,
+                }
+            )
+            return user, token
+
+    @classmethod
+    async def get_user_by_id(
+        cls, current_user: UserORM, user_id: int
+    ) -> UserORM:
+        """Получение пользователя по его ID."""
+        creator_role = current_user.role.lower() if current_user.role else ""
+        if creator_role not in LANDLORD_ROLES and current_user.id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для просмотра профиля другого пользователя",
+            )
+
+        async with get_session() as session:
+            users_repo = UsersRepository(session)
+            user = await users_repo.get_by_id_with_role(user_id)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Пользователь с ID {user_id} не найден",
+                )
+            return user
+
+    @classmethod
     async def update_user_data(
         cls, creator: UserORM, user_id_to_update: int, update_data: UserUpdateRequest
     ) -> UserORM:
         """Редактирование личных данных пользователя и привязанной компании."""
-        creator_role = creator.role.name.lower() if creator.role else ""
+        creator_role = creator.role.lower() if creator.role else ""
         if creator_role not in LANDLORD_ROLES and creator.id != user_id_to_update:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -319,7 +312,11 @@ class AuthService:
                 if update_data.company_name:
                     target_user.company.name = update_data.company_name.strip()
                 if update_data.company_address is not None:
-                    target_user.company.address = update_data.company_address.strip() if update_data.company_address else None
+                    target_user.company.address = (
+                        update_data.company_address.strip()
+                        if update_data.company_address
+                        else None
+                    )
 
             # Обновляем поля пользователя
             return await users_repo.update_user(
@@ -334,7 +331,7 @@ class AuthService:
         cls, creator: UserORM, user_id_to_update: int, is_active: bool
     ) -> UserORM:
         """Подтверждение заявки или блокировка (owner или admin)."""
-        creator_role = creator.role.name.lower() if creator.role else ""
+        creator_role = creator.role.lower() if creator.role else ""
         if creator_role not in LANDLORD_ROLES:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -356,7 +353,7 @@ class AuthService:
                     detail=f"Пользователь с ID {user_id_to_update} не найден",
                 )
 
-            target_role = target_user.role.name.lower() if target_user.role else ""
+            target_role = target_user.role.lower() if target_user.role else ""
 
             # Admin не может менять статус у owner или другого admin
             if creator_role == UserRole.ADMIN.value and target_role in (
@@ -374,11 +371,11 @@ class AuthService:
     async def get_users_list(
         cls,
         creator: UserORM,
-        role_name: str | None = None,
+        role: str | None = None,
         is_active: bool | None = None,
     ) -> list[UserORM]:
         """Получение списка пользователей/заявок (только owner или admin)."""
-        creator_role = creator.role.name.lower() if creator.role else ""
+        creator_role = creator.role.lower() if creator.role else ""
         if creator_role not in LANDLORD_ROLES:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -388,7 +385,7 @@ class AuthService:
         async with get_session() as session:
             users_repo = UsersRepository(session)
             return await users_repo.get_all(
-                role_name=role_name, is_active=is_active
+                role=role, is_active=is_active
             )
 
     @classmethod
@@ -411,8 +408,8 @@ class AuthService:
                     detail=f"Пользователь с ID {user_id_to_delete} не найден",
                 )
 
-            creator_role = creator.role.name.lower() if creator.role else ""
-            target_role = target_user.role.name.lower() if target_user.role else ""
+            creator_role = creator.role.lower() if creator.role else ""
+            target_role = target_user.role.lower() if target_user.role else ""
 
             allowed_targets = ROLE_PERMISSIONS.get(creator_role, set())
             if target_role not in allowed_targets:

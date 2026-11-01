@@ -21,7 +21,7 @@ class CompaniesService:
     async def get_by_id(
         cls, current_user: UserORM, company_id: int
     ) -> CompanyORM:
-        user_role = current_user.role.name.lower() if current_user.role else ""
+        user_role = current_user.role.lower() if current_user.role else ""
 
         # Доступ: landlord roles (owner, admin), lease_manager, либо сама компания
         allowed_roles = LANDLORD_ROLES | {UserRole.LEASE_MANAGER.value}

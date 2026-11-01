@@ -2,7 +2,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from orm.role_orm import RoleORM
 from orm.user_orm import UserORM
 
 
@@ -13,7 +12,7 @@ class UsersRepository:
     async def get_by_email(self, email: str) -> UserORM | None:
         stmt = (
             select(UserORM)
-            .options(joinedload(UserORM.role), joinedload(UserORM.company))
+            .options(joinedload(UserORM.company))
             .where(UserORM.email == email.strip().lower())
         )
         result = await self.session.execute(stmt)
@@ -25,7 +24,7 @@ class UsersRepository:
     async def get_by_id_with_role(self, user_id: int) -> UserORM | None:
         stmt = (
             select(UserORM)
-            .options(joinedload(UserORM.role), joinedload(UserORM.company))
+            .options(joinedload(UserORM.company))
             .where(UserORM.id == user_id)
         )
         result = await self.session.execute(stmt)
@@ -33,18 +32,18 @@ class UsersRepository:
 
     async def get_all(
         self,
-        role_name: str | None = None,
+        role: str | None = None,
         is_active: bool | None = None,
         company_id: int | None = None,
     ) -> list[UserORM]:
         stmt = (
             select(UserORM)
-            .options(joinedload(UserORM.role), joinedload(UserORM.company))
+            .options(joinedload(UserORM.company))
             .order_by(UserORM.id.desc())
         )
 
-        if role_name:
-            stmt = stmt.join(UserORM.role).where(RoleORM.name == role_name.strip())
+        if role:
+            stmt = stmt.where(UserORM.role == role.strip().lower())
         if is_active is not None:
             stmt = stmt.where(UserORM.is_active == is_active)
         if company_id is not None:
@@ -59,24 +58,24 @@ class UsersRepository:
         password_hash: str,
         first_name: str,
         last_name: str,
-        role_id: int,
-        company_id: int | None = None,
-        phone: str | None = None,
+        company_id: int|None,
+        role: str,
+        phone: str|None = None,
         is_active: bool = False,
     ) -> UserORM:
         user = UserORM(
-            email=email.strip().lower(),
+            email=email,
             password_hash=password_hash,
-            first_name=first_name.strip(),
-            last_name=last_name.strip(),
-            role_id=role_id,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
             company_id=company_id,
-            phone=phone.strip() if phone else None,
+            phone=phone,
             is_active=is_active,
         )
         self.session.add(user)
-        await self.session.commit()
-        return await self.get_by_id_with_role(user.id)  # type: ignore
+        await self.session.flush()
+        return user
 
     async def update_user(
         self,

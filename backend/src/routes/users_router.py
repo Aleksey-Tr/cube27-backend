@@ -21,8 +21,7 @@ def _to_user_response(user: UserORM) -> UserResponse:
         first_name=user.first_name,
         last_name=user.last_name,
         phone=user.phone,
-        role_id=user.role_id,
-        role_name=user.role.name if user.role else None,
+        role=user.role,
         company_id=user.company_id,
         company=(
             CompanyBriefResponse(
@@ -55,7 +54,7 @@ async def get_users(
 ) -> list[UserResponse]:
     users = await AuthService.get_users_list(
         creator=current_user,
-        role_name=role,
+        role=role,
         is_active=is_active,
     )
     return [_to_user_response(u) for u in users]
