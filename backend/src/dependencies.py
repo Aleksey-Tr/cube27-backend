@@ -7,7 +7,7 @@ from config import settings
 from database import get_session
 from orm.user_orm import UserORM
 from roles import LANDLORD_ROLES, STAFF_ROLES, UserRole
-from services.auth import decode_access_token
+from services.users_service import decode_access_token
 
 
 async def get_current_user(request: Request) -> UserORM:

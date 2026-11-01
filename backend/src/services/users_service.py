@@ -102,7 +102,7 @@ def delete_auth_cookie(response: Response) -> None:
     )
 
 
-class AuthService:
+class UsersService:
     """Сервис аутентификации, регистрации и управления пользователями/компаниями."""
 
     @classmethod
@@ -121,8 +121,11 @@ class AuthService:
             users_repo = UsersRepository(session)
             companies_repo = CompaniesRepository(session)
 
+            clean_email = register_data.email.strip().lower()
+            clean_inn = register_data.company_inn.strip()
+
             # 1. Проверяем email пользователя
-            existing_user = await users_repo.get_by_email(register_data.email)
+            existing_user = await users_repo.get_by_email(clean_email)
             if existing_user:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -130,7 +133,7 @@ class AuthService:
                 )
 
             # 2. Проверяем ИНН компании
-            existing_company = await companies_repo.get_by_inn(register_data.company_inn)
+            existing_company = await companies_repo.get_by_inn(clean_inn)
             if existing_company:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -145,20 +148,21 @@ class AuthService:
             )
             company = await companies_repo.create(
                 name=register_data.company_name.strip(),
-                inn=register_data.company_inn.strip(),
+                inn=clean_inn,
                 address=company_address,
             )
 
             # 4. Создаем пользователя-представителя со статусом is_active=False и ролью company
             password_hash = hash_password(register_data.password)
+            user_phone = register_data.phone.strip() if register_data.phone else None
             user = await users_repo.create_user(
-                email=register_data.email.strip().lower(),
+                email=clean_email,
                 password_hash=password_hash,
                 first_name=register_data.first_name.strip(),
                 last_name=register_data.last_name.strip(),
                 role=UserRole.COMPANY.value,
                 company_id=company.id,
-                phone=register_data.phone.strip(),
+                phone=user_phone,
                 is_active=False,
             )
             await session.commit()
@@ -195,7 +199,8 @@ class AuthService:
             companies_repo = CompaniesRepository(session)
 
             # Проверка уникальности email
-            existing_user = await users_repo.get_by_email(user_data.email)
+            clean_email = user_data.email.strip().lower()
+            existing_user = await users_repo.get_by_email(clean_email)
             if existing_user:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -206,7 +211,24 @@ class AuthService:
 
             # Если создается компания-арендатор: создаем компанию, если передан inn/name
             if target_role == UserRole.COMPANY.value:
-                if company_id or company_id == 0:
+                if not company_id:
+                    if not user_data.company_name or not user_data.company_inn:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Для создания компании-арендатора необходимо указать company_name и company_inn (или company_id)",
+                        )
+                    company_address = (
+                        user_data.company_address.strip()
+                        if user_data.company_address
+                        else None
+                    )
+                    company = await companies_repo.create(
+                        name=user_data.company_name.strip(),
+                        inn=user_data.company_inn.strip(),
+                        address=company_address,
+                    )
+                    company_id = company.id
+                else:
                     company = await companies_repo.get_by_id(company_id)
                     if not company:
                         raise HTTPException(
@@ -214,29 +236,32 @@ class AuthService:
                             detail=f"Компания с ID {company_id} не найдена",
                         )
                     company_id = company.id
-                else:
-                    company = await companies_repo.create(
-                        name=user_data.company_name.strip(),
-                        inn=user_data.company_inn.strip(),
-                        address=user_data.company_address.strip()
-                    )
+            else:
+                if company_id:
+                    company = await companies_repo.get_by_id(company_id)
+                    if not company:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Компания с ID {company_id} не найдена",
+                        )
                     company_id = company.id
+                elif creator.company_id:
+                    company_id = creator.company_id
 
             password_hash = hash_password(user_data.password)
-            # При создании арендодателем — is_active=True сразу
+            user_phone = user_data.phone.strip() if user_data.phone else None
             user = await users_repo.create_user(
-                email=user_data.email.strip().lower(),
+                email=clean_email,
                 password_hash=password_hash,
                 first_name=user_data.first_name.strip(),
                 last_name=user_data.last_name.strip(),
                 role=target_role,
                 company_id=company_id,
-                phone=user_data.phone.strip(),
+                phone=user_phone,
                 is_active=True,
             )
             await session.commit()
             return await users_repo.get_by_id_with_role(user.id)
-
 
     @classmethod
     async def login_user(
@@ -259,13 +284,11 @@ class AuthService:
                     detail="Ваша учетная запись ожидает подтверждения администратором или была деактивирована",
                 )
 
-            role = user.role
             token = create_access_token(
                 data={
                     "sub": str(user.id),
                     "email": user.email,
                     "role": user.role,
-                    "role": role,
                     "company_id": user.company_id,
                 }
             )

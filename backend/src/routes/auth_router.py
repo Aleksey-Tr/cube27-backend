@@ -10,7 +10,7 @@ from schemas.user_schemas import (
     UserRegisterResponse,
     UserResponse,
 )
-from services.auth import AuthService, delete_auth_cookie, set_auth_cookie
+from services.users_service import UsersService, delete_auth_cookie, set_auth_cookie
 
 router = APIRouter(prefix="/auth", tags=["Аутентификация и регистрация"])
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/auth", tags=["Аутентификация и рег
     ),
 )
 async def register(register_data: UserRegisterRequest) -> UserRegisterResponse:
-    user = await AuthService.user_register(register_data)
+    user = await UsersService.register_by_user(register_data)
     user_response = UserResponse(
         id=user.id,
         email=user.email,
@@ -65,7 +65,7 @@ async def login(
     login_data: UserLoginRequest,
     response: Response,
 ) -> UserResponse:
-    user, token = await AuthService.login_user(login_data)
+    user, token = await UsersService.login_user(login_data)
     set_auth_cookie(response=response, token=token)
     return UserResponse(
         id=user.id,

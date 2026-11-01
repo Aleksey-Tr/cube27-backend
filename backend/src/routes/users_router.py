@@ -9,7 +9,7 @@ from schemas.user_schemas import (
     UserStatusUpdateRequest,
     UserUpdateRequest,
 )
-from services.auth import AuthService
+from services.users_service import UsersService
 
 router = APIRouter(prefix="/users", tags=["Пользователи и управление доступом"])
 
@@ -52,7 +52,7 @@ async def get_users(
     is_active: bool | None = Query(default=None, description="Фильтр по активности (false — заявки на рассмотрении)"),
     current_user: UserORM = Depends(require_admin_or_owner),
 ) -> list[UserResponse]:
-    users = await AuthService.get_users_list(
+    users = await UsersService.get_users_list(
         creator=current_user,
         role=role,
         is_active=is_active,
@@ -73,7 +73,7 @@ async def get_user_by_id(
     user_id: int,
     current_user: UserORM = Depends(get_current_user),
 ) -> UserResponse:
-    user = await AuthService.get_user_by_id(
+    user = await UsersService.get_user_by_id(
         current_user=current_user, user_id=user_id
     )
     return _to_user_response(user)
@@ -96,7 +96,7 @@ async def create_user(
     user_data: UserCreateRequest,
     current_user: UserORM = Depends(get_current_user),
 ) -> UserResponse:
-    created_user = await AuthService.register_by_admin(
+    created_user = await UsersService.register_by_admin(
         creator=current_user, user_data=user_data
     )
     return _to_user_response(created_user)
@@ -113,7 +113,7 @@ async def update_user(
     update_data: UserUpdateRequest,
     current_user: UserORM = Depends(get_current_user),
 ) -> UserResponse:
-    updated_user = await AuthService.update_user_data(
+    updated_user = await UsersService.update_user_data(
         creator=current_user,
         user_id_to_update=user_id,
         update_data=update_data,
@@ -135,7 +135,7 @@ async def update_user_status(
     status_data: UserStatusUpdateRequest,
     current_user: UserORM = Depends(require_admin_or_owner),
 ) -> UserResponse:
-    updated_user = await AuthService.update_user_status(
+    updated_user = await UsersService.update_user_status(
         creator=current_user,
         user_id_to_update=user_id,
         is_active=status_data.is_active,
@@ -157,6 +157,6 @@ async def delete_user(
     user_id: int,
     current_user: UserORM = Depends(get_current_user),
 ) -> None:
-    await AuthService.delete_user_by_creator(
+    await UsersService.delete_user_by_creator(
         creator=current_user, user_id_to_delete=user_id
     )
