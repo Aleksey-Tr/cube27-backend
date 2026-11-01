@@ -96,7 +96,7 @@ async def create_user(
     user_data: UserCreateRequest,
     current_user: UserORM = Depends(get_current_user),
 ) -> UserResponse:
-    created_user = await AuthService.create_user_by_creator(
+    created_user = await AuthService.register_by_admin(
         creator=current_user, user_data=user_data
     )
     return _to_user_response(created_user)

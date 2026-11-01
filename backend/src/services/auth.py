@@ -138,16 +138,21 @@ class AuthService:
                 )
 
             # 3. Создаем компанию
+            company_address = (
+                register_data.company_address.strip()
+                if register_data.company_address
+                else None
+            )
             company = await companies_repo.create(
                 name=register_data.company_name.strip(),
                 inn=register_data.company_inn.strip(),
-                address=register_data.company_address.strip()
+                address=company_address,
             )
 
             # 4. Создаем пользователя-представителя со статусом is_active=False и ролью company
             password_hash = hash_password(register_data.password)
             user = await users_repo.create_user(
-                email=register_data.email.strip(),
+                email=register_data.email.strip().lower(),
                 password_hash=password_hash,
                 first_name=register_data.first_name.strip(),
                 last_name=register_data.last_name.strip(),
@@ -171,18 +176,18 @@ class AuthService:
         creator_role = creator.role.lower() if creator.role else ""
         target_role = user_data.role.lower().strip()
 
-        allowed_targets = ROLE_PERMISSIONS.get(creator_role, set())
-        if target_role not in allowed_targets:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Пользователь с ролью '{creator_role}' не может создавать пользователей с ролью '{target_role}'",
-            )
-
         valid_roles = {r.value for r in UserRole}
         if target_role not in valid_roles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Роль '{target_role}' не существует",
+            )
+
+        allowed_targets = ROLE_PERMISSIONS.get(creator_role, set())
+        if target_role not in allowed_targets:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Пользователь с ролью '{creator_role}' не может создавать пользователей с ролью '{target_role}'",
             )
 
         async with get_session() as session:
@@ -201,35 +206,37 @@ class AuthService:
 
             # Если создается компания-арендатор: создаем компанию, если передан inn/name
             if target_role == UserRole.COMPANY.value:
-                if not company_id:
-                    if not user_data.company_name or not user_data.company_inn:
+                if company_id or company_id == 0:
+                    company = await companies_repo.get_by_id(company_id)
+                    if not company:
                         raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Для создания компании-арендатора необходимо указать company_name и company_inn (или company_id)",
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Компания с ID {company_id} не найдена",
                         )
-                    company = await companies_repo.get_or_create(
-                        name=user_data.company_name,
-                        inn=user_data.company_inn,
-                        address=user_data.company_address,
+                    company_id = company.id
+                else:
+                    company = await companies_repo.create(
+                        name=user_data.company_name.strip(),
+                        inn=user_data.company_inn.strip(),
+                        address=user_data.company_address.strip()
                     )
                     company_id = company.id
-            else:
-                # Если это сотрудник компании арендодателя, привязываем к компании арендодателя (если она есть)
-                if not company_id and creator.company_id:
-                    company_id = creator.company_id
 
             password_hash = hash_password(user_data.password)
             # При создании арендодателем — is_active=True сразу
-            return await users_repo.create_user(
-                email=user_data.email,
+            user = await users_repo.create_user(
+                email=user_data.email.strip().lower(),
                 password_hash=password_hash,
-                first_name=user_data.first_name,
-                last_name=user_data.last_name,
+                first_name=user_data.first_name.strip(),
+                last_name=user_data.last_name.strip(),
                 role=target_role,
                 company_id=company_id,
-                phone=user_data.phone,
+                phone=user_data.phone.strip(),
                 is_active=True,
             )
+            await session.commit()
+            return await users_repo.get_by_id_with_role(user.id)
+
 
     @classmethod
     async def login_user(

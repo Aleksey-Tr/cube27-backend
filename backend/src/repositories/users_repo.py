@@ -60,7 +60,7 @@ class UsersRepository:
         last_name: str,
         company_id: int|None,
         role: str,
-        phone: str|None = None,
+        phone: str,
         is_active: bool = False,
     ) -> UserORM:
         user = UserORM(
