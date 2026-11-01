@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status
 
-from dependencies import get_current_user, require_admin_or_owner, require_roles
+from dependencies import get_current_user, require_admin, require_roles
 from orm.user_orm import UserORM
 from roles import UserRole
 from schemas.company_schemas import (
@@ -121,7 +121,7 @@ async def get_company_by_id(
 )
 async def create_company(
     data: CompanyCreate,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> CompanyResponse:
     return await CompaniesService.create(data=data)
 
@@ -135,7 +135,7 @@ async def create_company(
 async def update_company(
     company_id: int,
     data: CompanyUpdate,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> CompanyResponse:
     return await CompaniesService.update(company_id=company_id, data=data)
 
@@ -148,6 +148,6 @@ async def update_company(
 )
 async def delete_company(
     company_id: int,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> None:
     await CompaniesService.delete(company_id=company_id)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status
 
-from dependencies import get_current_user, require_admin_or_owner
+from dependencies import get_current_user, require_admin
 from orm.user_orm import UserORM
 from schemas.user_schemas import (
     CompanyBriefResponse,
@@ -50,7 +50,7 @@ def _to_user_response(user: UserORM) -> UserResponse:
 async def get_users(
     role: str | None = Query(default=None, description="Фильтр по имени роли (например, 'company')"),
     is_active: bool | None = Query(default=None, description="Фильтр по активности (false — заявки на рассмотрении)"),
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> list[UserResponse]:
     users = await UsersService.get_users_list(
         creator=current_user,
@@ -133,7 +133,7 @@ async def update_user(
 async def update_user_status(
     user_id: int,
     status_data: UserStatusUpdateRequest,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> UserResponse:
     updated_user = await UsersService.update_user_status(
         creator=current_user,

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 
-from dependencies import get_current_user, require_admin_or_owner, require_roles
+from dependencies import get_current_user, require_admin, require_roles
 from orm.user_orm import UserORM
 from roles import UserRole
 from schemas.premise_schemas import (
@@ -102,7 +102,7 @@ async def get_premise(premise_id: int) -> PremiseResponse:
 )
 async def create_premise(
     premise_data: PremiseCreate,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> PremiseResponse:
     return await PremisesService.create(data=premise_data)
 
@@ -116,7 +116,7 @@ async def create_premise(
 async def update_premise(
     premise_id: int,
     premise_data: PremiseUpdate,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> PremiseResponse:
     return await PremisesService.update(premise_id=premise_id, data=premise_data)
 
@@ -156,6 +156,6 @@ async def assign_premise(
 )
 async def delete_premise(
     premise_id: int,
-    current_user: UserORM = Depends(require_admin_or_owner),
+    current_user: UserORM = Depends(require_admin),
 ) -> None:
     await PremisesService.delete(premise_id=premise_id)

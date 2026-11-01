@@ -57,7 +57,6 @@ async def get_current_user(request: Request) -> UserORM:
 
     return user
 
-
 def require_roles(*allowed_roles: str) -> Callable:
     """Фабрика зависимости для проверки наличия у пользователя одной из разрешенных ролей."""
 
@@ -89,7 +88,7 @@ async def require_owner(
     return current_user
 
 
-async def require_admin_or_owner(
+async def require_admin(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что у пользователя роль 'owner' или 'admin'."""
@@ -101,26 +100,12 @@ async def require_admin_or_owner(
         )
     return current_user
 
-
-async def require_staff(
-    current_user: UserORM = Depends(get_current_user),
-) -> UserORM:
-    """Проверяет, что пользователь является сотрудником компании арендодателя."""
-    user_role = current_user.role.lower() if current_user.role else ""
-    if user_role not in STAFF_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав. Доступно только сотрудникам компании арендодателя",
-        )
-    return current_user
-
-
 async def require_company(
     current_user: UserORM = Depends(get_current_user),
 ) -> UserORM:
     """Проверяет, что текущий пользователь является компанией-арендатором."""
     user_role = current_user.role.lower() if current_user.role else ""
-    if user_role != UserRole.COMPANY.value:
+    if user_role not in (UserRole.COMPANY.value, UserRole.OWNER.value, UserRole.ADMIN.value):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав. Раздел предназначен для арендаторов (компаний)",
