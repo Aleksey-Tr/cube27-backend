@@ -1,12 +1,14 @@
+CREATE TYPE user_role AS ENUM ('SuperAdmin', 'LeaseManager', 'ChiefPowerEngineer', 'HeadOfEMO', 'ChiefEngineer', 'Accountant', 'TenantAdmin', 'TenantEmployee');
 CREATE TYPE premise_status AS ENUM ('Free', 'Occupied', 'Reserved', 'Maintenance');
 CREATE TYPE contract_status AS ENUM ('Draft', 'Active', 'Expired', 'Terminated');
 CREATE TYPE invoice_status AS ENUM ('Unpaid', 'Paid', 'Overdue', 'Cancelled');
 CREATE TYPE meter_reading_status AS ENUM ('Pending', 'Approved', 'Rejected');
 CREATE TYPE ticket_status AS ENUM ('Open', 'InProgress', 'PendingTenant', 'Closed', 'Cancelled');
+CREATE TYPE news_category AS ENUM ('Accident', 'Maintenance', 'Electricity', 'Water', 'Heating', 'Construction', 'Accounting', 'Lease', 'General');
 
 CREATE TABLE roles (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) UNIQUE NOT NULL -- Название роли
+    name user_role UNIQUE NOT NUL -- Название роли
 ); -- Роли пользователей 
 
 CREATE TABLE companies (
@@ -57,6 +59,7 @@ CREATE TABLE contract_premises (
 CREATE TABLE invoices (
     id SERIAL PRIMARY KEY,
     contract_id INT REFERENCES contracts(id) ON DELETE CASCADE,
+    invoice_type VARCHAR(50) NOT NULL DEFAULT 'Rent', -- Тип счета
     amount DECIMAL(12, 2) NOT NULL,                             -- Сумма к оплате
     status invoice_status DEFAULT 'Unpaid',                        -- Статус
     due_date DATE NOT NULL,                                     -- Крайний срок оплаты
@@ -89,3 +92,15 @@ CREATE TABLE tickets (
     bitrix_task_id VARCHAR(100),                              -- ID созданной задачи в Битрикс24
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP            -- Дата и время создания заявки
 ); -- Заявки на обслуживание
+
+CREATE TABLE news (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL, -- Название новости
+    category news_category NOT NULL, -- КаАтегория новости
+    importance_level VARCHAR(50) DEFAULT 'Normal', -- Уровень важности новости
+    short_description TEXT, -- Краткое описание новости
+    full_text TEXT NOT NULL, -- Полный текст новости
+    is_urgent BOOLEAN DEFAULT FALSE, -- Актуальность новости
+    expires_at TIMESTAMP, -- Срок действия новости
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Дата и время создания новости
+); -- Новости и объявления для пользователей
