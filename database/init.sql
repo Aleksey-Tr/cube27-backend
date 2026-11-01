@@ -6,11 +6,6 @@ CREATE TYPE meter_reading_status AS ENUM ('Pending', 'Approved', 'Rejected');
 CREATE TYPE ticket_status AS ENUM ('Open', 'InProgress', 'PendingTenant', 'Closed', 'Cancelled');
 CREATE TYPE news_category AS ENUM ('Accident', 'Maintenance', 'Electricity', 'Water', 'Heating', 'Construction', 'Accounting', 'Lease', 'General');
 
-CREATE TABLE roles (
-    id SERIAL PRIMARY KEY,
-    name user_role UNIQUE NOT NUL -- Название роли
-); -- Роли пользователей 
-
 CREATE TABLE companies (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,                    -- Название компании
