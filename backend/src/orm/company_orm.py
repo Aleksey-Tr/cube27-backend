@@ -16,5 +16,13 @@ class CompanyORM(Base):
         DateTime, server_default=func.now(), nullable=False
     )
 
-    users: Mapped[list["UserORM"]] = relationship(back_populates="company")
-    contracts: Mapped[list["ContractORM"]] = relationship(back_populates="company")
+    users: Mapped[list["UserORM"]] = relationship(
+        back_populates="company",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    contracts: Mapped[list["ContractORM"]] = relationship(
+        back_populates="company",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

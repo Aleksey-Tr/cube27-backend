@@ -1,4 +1,5 @@
 from sqlalchemy import Boolean, ForeignKey, Integer, String, false
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from orm.base import Base
@@ -9,9 +10,23 @@ class UserORM(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[int | None] = mapped_column(
-        ForeignKey("companies.id"), nullable=True
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=True
     )
-    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), nullable=False)
+    role: Mapped[str] = mapped_column(
+        ENUM(
+            "owner",
+            "admin",
+            "lease_manager",
+            "chief_power_engineer",
+            "chief_emo",
+            "chief_engineer",
+            "chief_accountant",
+            "company",
+            name="user_role",
+            create_type=False,
+        ),
+        nullable=False,
+    )
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
@@ -22,8 +37,5 @@ class UserORM(Base):
     )
 
     company: Mapped["CompanyORM | None"] = relationship(back_populates="users")
-    role: Mapped["RoleORM"] = relationship(back_populates="users")
-    meter_readings: Mapped[list["MeterReadingORM"]] = relationship(
-        back_populates="user"
-    )
+    meter_readings: Mapped[list["MeterReadingORM"]] = relationship(back_populates="user")
     tickets: Mapped[list["TicketORM"]] = relationship(back_populates="author")
