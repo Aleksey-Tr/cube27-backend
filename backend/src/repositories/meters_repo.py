@@ -1,6 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from orm.contract_orm import ContractORM
+from orm.contract_premise_orm import ContractPremiseORM
 from orm.meter_orm import MeterORM
 
 
@@ -20,15 +22,39 @@ class MetersRepository:
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def get_by_premise_id(self, premise_id: int) -> list[MeterORM]:
-        """Получение списка счетчиков конкретного помещения."""
-        stmt = (
-            select(MeterORM)
-            .where(MeterORM.premise_id == premise_id)
-            .order_by(MeterORM.id)
-        )
+    async def get_all(
+        self,
+        premise_id: int | None = None,
+        meter_type: str | None = None
+    ) -> list[MeterORM]:
+        """Получение списка счетчиков с фильтрацией по помещению, типу и категории прав."""
+        stmt = select(MeterORM)
+
+        if premise_id is not None:
+            stmt = stmt.where(MeterORM.premise_id == premise_id)
+
+        if meter_type:
+            stmt = stmt.where(MeterORM.meter_type.ilike(f"%{meter_type.strip()}%"))
+
+        stmt = stmt.order_by(MeterORM.id)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def is_premise_rented_by_company(
+        self, premise_id: int, company_id: int
+    ) -> bool:
+        """Проверяет, арендует ли указанная компания данное помещение по активному договору."""
+        stmt = (
+            select(ContractPremiseORM)
+            .join(ContractORM, ContractORM.id == ContractPremiseORM.contract_id)
+            .where(
+                ContractPremiseORM.premise_id == premise_id,
+                ContractORM.company_id == company_id,
+                ContractORM.status.in_(["Active"]),
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first() is not None
 
     async def create(
         self,
@@ -43,6 +69,5 @@ class MetersRepository:
             serial_number=serial_number.strip(),
         )
         self.session.add(meter)
-        await self.session.commit()
-        await self.session.refresh(meter)
+        await self.session.flush()
         return meter
