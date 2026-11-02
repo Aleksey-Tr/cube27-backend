@@ -1,3 +1,8 @@
+from schemas.meter_schemas import (
+    MeterCreate,
+    MeterResponse,
+    MeterType,
+)
 from schemas.premise_schemas import (
     PremiseCreate,
     PremiseResponse,
@@ -18,4 +23,7 @@ __all__ = [
     "PremiseCreate",
     "PremiseUpdate",
     "PremiseResponse",
+    "MeterCreate",
+    "MeterResponse",
+    "MeterType",
 ]
