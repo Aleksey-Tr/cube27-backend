@@ -4,12 +4,31 @@ from dependencies import get_current_user
 from orm.user_orm import UserORM
 from schemas.meter_reading_schemas import (
     MeterReadingCreate,
+    MeterReadingDetailResponse,
     MeterReadingResponse,
     MeterReadingStatusUpdate,
 )
 from services.meter_readings_service import MeterReadingsService
 
 router = APIRouter(tags=["Показания счётчиков"])
+
+
+@router.get(
+    "/readings",
+    response_model=list[MeterReadingDetailResponse],
+    summary="Просмотр показаний счётчиков",
+    description=(
+        "Возвращает показания от новых к старым вместе со счётчиком, краткими "
+        "данными помещения (ID, номер, этаж) и автора (ID, имя, фамилия, роль). "
+        "owner и admin видят все показания; chief_power_engineer — только "
+        "электричество, chief_emo — только водоснабжение. "
+        "Если автор удалён, user и user_id равны null."
+    ),
+)
+async def get_meter_readings(
+    current_user: UserORM = Depends(get_current_user),
+) -> list[MeterReadingDetailResponse]:
+    return await MeterReadingsService.get_all_readings(current_user=current_user)
 
 
 @router.patch(

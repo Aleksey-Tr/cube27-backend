@@ -12,6 +12,24 @@ from schemas.meter_schemas import MeterType
 
 class MeterReadingsService:
     @staticmethod
+    async def get_all_readings(current_user: UserORM) -> list[MeterReadingORM]:
+        user_role = current_user.role.lower().strip() if current_user.role else ""
+        if user_role in (UserRole.OWNER.value, UserRole.ADMIN.value):
+            meter_type = None
+        elif user_role == UserRole.CHIEF_POWER_ENGINEER.value:
+            meter_type = MeterType.ELECTRICITY.value
+        elif user_role == UserRole.CHIEF_EMO.value:
+            meter_type = MeterType.WATER.value
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для просмотра показаний",
+            )
+
+        async with get_session() as session:
+            return await MeterReadingsRepository(session).get_all(meter_type=meter_type)
+
+    @staticmethod
     async def update_status(
         reading_id: int, data: MeterReadingStatusUpdate, current_user: UserORM,
     ) -> MeterReadingORM:

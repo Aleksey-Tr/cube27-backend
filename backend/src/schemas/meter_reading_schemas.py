@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from schemas.meter_schemas import MeterResponse
+
 
 class MeterReadingCreate(BaseModel):
     value: Decimal = Field(
@@ -31,3 +33,30 @@ class MeterReadingResponse(BaseModel):
     status: Literal["Pending", "Approved", "Rejected"]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ReadingPremiseBriefResponse(BaseModel):
+    id: int
+    room_number: str
+    floor: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReadingMeterResponse(MeterResponse):
+    premise: ReadingPremiseBriefResponse
+
+
+class ReadingUserBriefResponse(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    role: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MeterReadingDetailResponse(MeterReadingResponse):
+    user_id: int | None
+    meter: ReadingMeterResponse
+    user: ReadingUserBriefResponse | None
