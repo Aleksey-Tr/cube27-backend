@@ -12,6 +12,8 @@ CREATE TYPE ticket_status AS ENUM ('Open', 'InProgress', 'PendingTenant', 'Close
 
 CREATE TYPE news_category AS ENUM ('Accident', 'Maintenance', 'Electricity', 'Water', 'Heating', 'Construction', 'Accounting', 'Lease', 'General');
 
+CREATE TYPE room_type_enum AS ENUM ('warehouse', 'office', 'retail space');
+
 CREATE TABLE companies (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL, -- Название компании
@@ -43,6 +45,14 @@ CREATE TABLE premises (
     price DECIMAL(12, 2) NOT NULL -- Базовая стоимость аренды в месяц
 );
 -- Помещение и общая информация
+
+CREATE TABLE IF NOT EXISTS rooms (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,          -- Название помещения
+    address VARCHAR(512) NOT NULL,       -- Адрес
+    type room_type_enum NOT NULL         -- Тип помещения через ENUM
+);
+-- Помещения
 
 CREATE TABLE contracts (
     id SERIAL PRIMARY KEY,
