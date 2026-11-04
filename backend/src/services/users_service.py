@@ -12,7 +12,7 @@ from database import get_session
 from orm.user_orm import UserORM
 from repositories.companies_repo import CompaniesRepository
 from repositories.users_repo import UsersRepository
-from roles import LANDLORD_ROLES, ROLE_PERMISSIONS, UserRole
+from roles import ROLE_PERMISSIONS, UserRole
 from schemas.user_schemas import (
     UserCreateRequest,
     UserLoginRequest,
@@ -300,7 +300,7 @@ class UsersService:
     ) -> UserORM:
         """Получение пользователя по его ID."""
         creator_role = current_user.role.lower() if current_user.role else ""
-        if creator_role not in LANDLORD_ROLES and current_user.id != user_id:
+        if creator_role not in (UserRole.OWNER.value, UserRole.ADMIN.value) and current_user.id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав для просмотра профиля другого пользователя",
@@ -322,7 +322,7 @@ class UsersService:
     ) -> UserORM:
         """Редактирование личных данных пользователя и привязанной компании."""
         creator_role = creator.role.lower() if creator.role else ""
-        if creator_role not in LANDLORD_ROLES and creator.id != user_id_to_update:
+        if creator_role not in (UserRole.OWNER.value, UserRole.ADMIN.value) and creator.id != user_id_to_update:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав для редактирования данных другого пользователя",
@@ -362,7 +362,7 @@ class UsersService:
     ) -> UserORM:
         """Подтверждение заявки или блокировка (owner или admin)."""
         creator_role = creator.role.lower() if creator.role else ""
-        if creator_role not in LANDLORD_ROLES:
+        if creator_role not in (UserRole.OWNER.value, UserRole.ADMIN.value):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав. Только owner или admin могут изменять статус пользователей",
@@ -406,7 +406,7 @@ class UsersService:
     ) -> list[UserORM]:
         """Получение списка пользователей/заявок (только owner или admin)."""
         creator_role = creator.role.lower() if creator.role else ""
-        if creator_role not in LANDLORD_ROLES:
+        if creator_role not in (UserRole.OWNER.value, UserRole.ADMIN.value):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Недостаточно прав. Доступно только owner или admin",

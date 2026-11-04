@@ -14,22 +14,6 @@ class UserRole(str, Enum):
     COMPANY = "company"                                 # Компания-арендатор (единая роль арендатора)
 
 
-# Группы ролей
-LANDLORD_ROLES: set[str] = {
-    UserRole.OWNER.value,
-    UserRole.ADMIN.value,
-}
-
-STAFF_ROLES: set[str] = {
-    UserRole.OWNER.value,
-    UserRole.ADMIN.value,
-    UserRole.LEASE_MANAGER.value,
-    UserRole.CHIEF_POWER_ENGINEER.value,
-    UserRole.CHIEF_EMO.value,
-    UserRole.CHIEF_ENGINEER.value,
-    UserRole.CHIEF_ACCOUNTANT.value,
-}
-
 # Матрица прав: роль создателя -> роли, которыми он может управлять
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     # 1. owner: управление абсолютно всеми ролями

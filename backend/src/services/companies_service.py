@@ -4,7 +4,7 @@ from database import get_session
 from orm.company_orm import CompanyORM
 from orm.user_orm import UserORM
 from repositories.companies_repo import CompaniesRepository
-from roles import LANDLORD_ROLES, UserRole
+from roles import UserRole
 from schemas.company_schemas import CompanyCreate, CompanyUpdate
 
 
@@ -23,8 +23,12 @@ class CompaniesService:
     ) -> CompanyORM:
         user_role = current_user.role.lower() if current_user.role else ""
 
-        # Доступ: landlord roles (owner, admin), lease_manager, либо сама компания
-        allowed_roles = LANDLORD_ROLES | {UserRole.LEASE_MANAGER.value}
+        # Доступ: owner, admin, lease_manager либо сама компания.
+        allowed_roles = {
+            UserRole.OWNER.value,
+            UserRole.ADMIN.value,
+            UserRole.LEASE_MANAGER.value,
+        }
         if user_role not in allowed_roles and current_user.company_id != company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
