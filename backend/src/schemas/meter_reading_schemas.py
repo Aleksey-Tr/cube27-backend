@@ -14,6 +14,14 @@ class MeterReadingCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class MeterReadingStatusUpdate(BaseModel):
+    status: Literal["Pending", "Approved", "Rejected"] = Field(
+        ..., description="Новый статус показания",
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class MeterReadingResponse(BaseModel):
     id: int
     meter_id: int

@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from orm.contract_orm import ContractORM
 from orm.contract_premise_orm import ContractPremiseORM
@@ -11,6 +12,20 @@ from orm.meter_reading_orm import MeterReadingORM
 class MeterReadingsRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def get_by_id(self, reading_id: int) -> MeterReadingORM | None:
+        stmt = (
+            select(MeterReadingORM)
+            .options(joinedload(MeterReadingORM.meter))
+            .where(MeterReadingORM.id == reading_id)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_status(self, reading: MeterReadingORM, new_status: str) -> MeterReadingORM:
+        reading.status = new_status
+        await self.session.flush()
+        return reading
 
     async def is_current_tenant(self, premise_id: int, company_id: int) -> bool:
         stmt = (

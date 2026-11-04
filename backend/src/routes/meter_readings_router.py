@@ -2,10 +2,34 @@ from fastapi import APIRouter, Depends, Path, status
 
 from dependencies import get_current_user
 from orm.user_orm import UserORM
-from schemas.meter_reading_schemas import MeterReadingCreate, MeterReadingResponse
+from schemas.meter_reading_schemas import (
+    MeterReadingCreate,
+    MeterReadingResponse,
+    MeterReadingStatusUpdate,
+)
 from services.meter_readings_service import MeterReadingsService
 
 router = APIRouter(tags=["Показания счётчиков"])
+
+
+@router.patch(
+    "/readings/{id}/status",
+    response_model=MeterReadingResponse,
+    summary="Изменение статуса показания счётчика",
+    description=(
+        "Изменяет статус показания на Pending, Approved или Rejected. "
+        "owner и admin могут изменять любые показания; chief_power_engineer — "
+        "только показания счётчиков электричества, chief_emo — водоснабжения."
+    ),
+)
+async def update_meter_reading_status(
+    id: int = Path(..., gt=0, description="ID показания"),
+    status_data: MeterReadingStatusUpdate = ...,
+    current_user: UserORM = Depends(get_current_user),
+) -> MeterReadingResponse:
+    return await MeterReadingsService.update_status(
+        reading_id=id, data=status_data, current_user=current_user,
+    )
 
 
 @router.post(

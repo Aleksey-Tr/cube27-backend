@@ -6,11 +6,47 @@ from orm.user_orm import UserORM
 from repositories.meter_readings_repo import MeterReadingsRepository
 from repositories.meters_repo import MetersRepository
 from roles import UserRole
-from schemas.meter_reading_schemas import MeterReadingCreate
+from schemas.meter_reading_schemas import MeterReadingCreate, MeterReadingStatusUpdate
 from schemas.meter_schemas import MeterType
 
 
 class MeterReadingsService:
+    @staticmethod
+    async def update_status(
+        reading_id: int, data: MeterReadingStatusUpdate, current_user: UserORM,
+    ) -> MeterReadingORM:
+        user_role = current_user.role.lower().strip() if current_user.role else ""
+        staff_types = {
+            UserRole.CHIEF_POWER_ENGINEER.value: MeterType.ELECTRICITY.value,
+            UserRole.CHIEF_EMO.value: MeterType.WATER.value,
+        }
+        if user_role not in (UserRole.OWNER.value, UserRole.ADMIN.value, *staff_types):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для изменения статуса показания",
+            )
+
+        async with get_session() as session:
+            repo = MeterReadingsRepository(session)
+            reading = await repo.get_by_id(reading_id)
+            if reading is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Показание с ID {reading_id} не найдено",
+                )
+
+            if user_role in staff_types:
+                allowed_type = staff_types[user_role]
+                if reading.meter is None or reading.meter.meter_type.lower().strip() != allowed_type:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Для вашей роли разрешены только счётчики типа '{allowed_type}'",
+                    )
+
+            reading = await repo.update_status(reading, data.status)
+            await session.commit()
+            return reading
+
     @staticmethod
     async def create_reading(
         meter_id: int, data: MeterReadingCreate, current_user: UserORM,
