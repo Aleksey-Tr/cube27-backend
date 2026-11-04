@@ -5,15 +5,78 @@ from orm.meter_orm import MeterORM
 from orm.premise_orm import PremiseORM
 from orm.user_orm import UserORM
 from repositories.meters_repo import MetersRepository
-from roles import LANDLORD_ROLES, UserRole
+from roles import UserRole
 from schemas.meter_schemas import (
     MeterCreate,
-    MeterType
+    MeterType,
+    MeterUpdate,
 )
 
 
 class MetersService:
     """Сервис управления приборами учета (счетчиками)."""
+
+    @staticmethod
+    def _check_management_access(current_user: UserORM, meter_type: str | None = None) -> None:
+        user_role = current_user.role.lower().strip() if current_user.role else ""
+        if user_role in (UserRole.OWNER.value, UserRole.ADMIN.value):
+            return
+        allowed_type = {
+            UserRole.CHIEF_POWER_ENGINEER.value: MeterType.ELECTRICITY.value,
+            UserRole.CHIEF_EMO.value: MeterType.WATER.value,
+        }.get(user_role)
+        if allowed_type is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для изменения или удаления счетчиков",
+            )
+        if meter_type is not None and meter_type.lower().strip() != allowed_type:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Для вашей роли разрешены только счетчики типа '{allowed_type}'",
+            )
+
+    @classmethod
+    async def update_meter(
+        cls, meter_id: int, data: MeterUpdate, current_user: UserORM
+    ) -> MeterORM:
+        cls._check_management_access(current_user)
+        async with get_session() as session:
+            repo = MetersRepository(session)
+            meter = await repo.get_by_id(meter_id)
+            if meter is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Счетчик с ID {meter_id} не найден",
+                )
+            cls._check_management_access(current_user, meter.meter_type)
+            values = data.model_dump(exclude_unset=True, mode="json")
+            if "meter_type" in values:
+                cls._check_management_access(current_user, values["meter_type"])
+            if "serial_number" in values:
+                existing = await repo.get_by_serial_number(values["serial_number"])
+                if existing is not None and existing.id != meter.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Счетчик с серийным номером '{values['serial_number']}' уже зарегистрирован (ID: {existing.id})",
+                    )
+            meter = await repo.update(meter, values)
+            await session.commit()
+            return meter
+
+    @classmethod
+    async def delete_meter(cls, meter_id: int, current_user: UserORM) -> None:
+        async with get_session() as session:
+            repo = MetersRepository(session)
+            meter = await repo.get_by_id(meter_id)
+            if meter is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Счетчик с ID {meter_id} не найден",
+                )
+            cls._check_management_access(current_user, meter.meter_type)
+            await repo.delete(meter)
+            await session.commit()
 
     @classmethod
     async def create_meter(

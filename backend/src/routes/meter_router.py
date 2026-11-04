@@ -3,10 +3,61 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from dependencies import get_current_user, require_roles
 from orm.user_orm import UserORM
 from roles import UserRole
-from schemas.meter_schemas import MeterCreate, MeterResponse, MeterType
+from schemas.meter_schemas import MeterCreate, MeterResponse, MeterType, MeterUpdate
 from services.meters_service import MetersService
 
 router = APIRouter(tags=["Счетчики"])
+
+
+@router.patch(
+    "/meters/{meter_id}",
+    response_model=MeterResponse,
+    summary="Редактирование счетчика",
+    description=(
+        "Частично обновляет тип и серийный номер счетчика. "
+        "owner и admin могут изменять любые счетчики; chief_power_engineer — только "
+        "электричество, chief_emo — только водоснабжение. Проверяются текущий и новый типы."
+    ),
+)
+async def update_meter(
+    meter_id: int = Path(..., description="ID счетчика"),
+    meter_data: MeterUpdate = ...,
+    current_user: UserORM = Depends(
+        require_roles(
+            UserRole.OWNER.value,
+            UserRole.ADMIN.value,
+            UserRole.CHIEF_POWER_ENGINEER.value,
+            UserRole.CHIEF_EMO.value,
+        )
+    ),
+) -> MeterResponse:
+    return await MetersService.update_meter(
+        meter_id=meter_id, data=meter_data, current_user=current_user
+    )
+
+
+@router.delete(
+    "/meters/{meter_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удаление счетчика",
+    description=(
+        "Удаляет счетчик. owner и admin могут удалять любые счетчики; "
+        "chief_power_engineer — только электричество, chief_emo — только водоснабжение. "
+        "Связанные показания каскадно удаляются базой данных."
+    ),
+)
+async def delete_meter(
+    meter_id: int = Path(..., description="ID счетчика"),
+    current_user: UserORM = Depends(
+        require_roles(
+            UserRole.OWNER.value,
+            UserRole.ADMIN.value,
+            UserRole.CHIEF_POWER_ENGINEER.value,
+            UserRole.CHIEF_EMO.value,
+        )
+    ),
+) -> None:
+    await MetersService.delete_meter(meter_id=meter_id, current_user=current_user)
 
 
 @router.get(

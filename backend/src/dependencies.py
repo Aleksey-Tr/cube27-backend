@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload
 from config import settings
 from database import get_session
 from orm.user_orm import UserORM
-from roles import LANDLORD_ROLES, STAFF_ROLES, UserRole
+from roles import UserRole
 from services.users_service import decode_access_token
 
 
@@ -93,7 +93,7 @@ async def require_admin(
 ) -> UserORM:
     """Проверяет, что у пользователя роль 'owner' или 'admin'."""
     user_role = current_user.role.lower() if current_user.role else ""
-    if user_role not in LANDLORD_ROLES:
+    if user_role not in (UserRole.OWNER.value, UserRole.ADMIN.value):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав. Требуется роль 'admin' или 'owner'",

@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from orm.contract_orm import ContractORM
@@ -71,3 +71,12 @@ class MetersRepository:
         self.session.add(meter)
         await self.session.flush()
         return meter
+
+    async def update(self, meter: MeterORM, values: dict) -> MeterORM:
+        for field, value in values.items():
+            setattr(meter, field, value)
+        await self.session.flush()
+        return meter
+
+    async def delete(self, meter: MeterORM) -> None:
+        await self.session.delete(meter)
