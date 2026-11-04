@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from routes.auth_router import router as auth_router
 from routes.companies_router import router as companies_router
+from routes.meter_readings_router import router as meter_readings_router
 from routes.meter_router import router as meter_router
 from routes.premises_router import router as premises_router
 from routes.users_router import router as users_router
@@ -51,6 +52,7 @@ app.include_router(users_router)
 app.include_router(companies_router)
 app.include_router(premises_router)
 app.include_router(meter_router)
+app.include_router(meter_readings_router)
 
 
 @app.get("/", tags=["Health"])
